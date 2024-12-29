@@ -19,16 +19,16 @@ class FaceDrawingApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Face Drawing App',
       theme: ThemeData(
-        primaryColor: Color(0xFFbfd7ed),  // Updated to #bfd7ed
-        scaffoldBackgroundColor: Colors.white,  // White background color
+        primaryColor: Color(0xFFbfd7ed),
+        scaffoldBackgroundColor: Colors.white,
         appBarTheme: AppBarTheme(
-          backgroundColor: Color(0xFFbfd7ed),  // Updated AppBar color
+          backgroundColor: Color(0xFFbfd7ed),
         ),
         floatingActionButtonTheme: FloatingActionButtonThemeData(
-          backgroundColor: Color(0xFFbfd7ed),  // Matching button color
+          backgroundColor: Color(0xFFbfd7ed),
         ),
         iconTheme: IconThemeData(
-          color: Colors.white,  // White icons to match theme
+          color: Colors.white,
         ),
       ),
       home: const DrawingPage(),
@@ -85,9 +85,7 @@ class _DrawingPageState extends State<DrawingPage> {
         _outputImagePath = outputFile.path;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      _showErrorPopup(context, 'Failed to connect to the API. Please try again.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -95,10 +93,37 @@ class _DrawingPageState extends State<DrawingPage> {
     }
   }
 
+  void _showErrorPopup(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _generateImage();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _resetDrawing() {
     setState(() {
       _points.clear();
-      _outputImagePath = null;  // Reset the output image path as well
+      _outputImagePath = null;
     });
   }
 
@@ -159,7 +184,6 @@ class _DrawingPageState extends State<DrawingPage> {
         children: [
           Column(
             children: [
-              // Top half - Generated image
               Expanded(
                 flex: 1,
                 child: _outputImagePath != null
@@ -173,7 +197,6 @@ class _DrawingPageState extends State<DrawingPage> {
                         child: Text('Generated image will appear here'),
                       ),
               ),
-              // Bottom half - Drawing area
               Expanded(
                 flex: 1,
                 child: RepaintBoundary(
@@ -200,38 +223,33 @@ class _DrawingPageState extends State<DrawingPage> {
               ),
             ],
           ),
-          // Centered Loading State with Overlay
           if (_isLoading)
             Stack(
               children: [
-                // Semi-transparent overlay with same color as the app bar
                 Container(
-                  color: Color(0xFFbfd7ed).withOpacity(0.7), // Same color as app bar with transparency
+                  color: Color(0xFFbfd7ed).withOpacity(0.7),
                 ),
-                // Centered Loading Indicator
                 const Center(
                   child: CircularProgressIndicator(),
                 ),
               ],
             ),
-          // Positioned Generate Button with Magic Icon (Updated)
           Positioned(
             bottom: 20,
             right: 20,
             child: FloatingActionButton(
               onPressed: _isLoading ? null : _generateImage,
-              backgroundColor: const Color(0xFFbfd7ed),  // Matching button color
-              child: const Icon(Icons.star, size: 30), // Magic-like icon (Star)
+              backgroundColor: const Color(0xFFbfd7ed),
+              child: const Icon(Icons.star, size: 30),
             ),
           ),
-          // Positioned Reset Button at the bottom left
           Positioned(
             bottom: 20,
             left: 20,
             child: FloatingActionButton(
               onPressed: _resetDrawing,
-              backgroundColor: const Color(0xFFbfd7ed),  // Matching button color
-              child: const Icon(Icons.refresh, size: 30),  // Reset icon
+              backgroundColor: const Color(0xFFbfd7ed),
+              child: const Icon(Icons.refresh, size: 30),
             ),
           ),
         ],
