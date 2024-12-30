@@ -361,7 +361,7 @@ class AboutPage extends StatelessWidget {
             Text('• Customize the API URL for image processing'),
             SizedBox(height: 10),
             Text(
-              'Developed by 117.',
+              'Developed by Dotware@117.',
             ),
           ],
         ),
