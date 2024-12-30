@@ -1,6 +1,5 @@
 # Face Drawing App
 
-![Face Drawing App](https://via.placeholder.com/500x300.png)  
 *Create and transform your drawings into unique artworks with the Face Drawing App!*
 
 ---
@@ -29,15 +28,6 @@ The **Face Drawing App** allows users to draw freehand on a canvas and send thei
 
 ---
 
-## Screenshots
-
-### Home Screen
-
-![Home Screen](https://via.placeholder.com/500x300.png)
-
-### Drawing Area
-
-![Drawing Area](https://via.placeholder.com/500x300.png)
 
 ---
 
