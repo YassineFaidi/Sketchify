@@ -70,9 +70,30 @@ class _DrawingPageState extends State<DrawingPage> {
     });
   }
 
+  // Helper function to clear the temporary directory
+  Future<void> _clearTemporaryDirectory() async {
+    print("Clearing...");
+    final tempDir = await getTemporaryDirectory();
+    final directory = Directory(tempDir.path);
+
+    if (directory.existsSync()) {
+      final files = directory.listSync();
+      for (var file in files) {
+        try {
+          if (file is File) {
+            file.deleteSync(); // Delete each file
+          }
+        } catch (e) {
+          debugPrint('Error deleting file: $e');
+        }
+      }
+    }
+  }
+
   // Generates an image based on the user's drawing
   Future<void> _generateImage() async {
     try {
+      await _clearTemporaryDirectory(); // Clear temp directory first
       setState(() {
         _isLoading = true; // Show loading indicator
         _outputImagePath = null; // Reset output image path
@@ -146,7 +167,8 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   // Clears the drawing and resets the UI
-  void _resetDrawing() {
+  void _resetDrawing() async{
+    await _clearTemporaryDirectory(); // Clear temp directory first
     setState(() {
       _points.clear(); // Clear drawn points
       _outputImagePath = null; // Reset output image
