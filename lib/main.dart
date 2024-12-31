@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -37,6 +36,18 @@ class FaceDrawingApp extends StatelessWidget {
   }
 }
 
+class DrawingAction {
+  final bool isErase;
+  final List<Offset?> points;
+  final List<List<Offset?>> erasedPoints;
+
+  DrawingAction({
+    required this.isErase,
+    required this.points,
+    this.erasedPoints = const [],
+  });
+}
+
 class DrawingPage extends StatefulWidget {
   const DrawingPage({super.key});
 
@@ -50,13 +61,14 @@ class _DrawingPageState extends State<DrawingPage> {
   String? _outputImagePath;
   String _apiUrl = 'https://d30c-34-142-175-1.ngrok-free.app';
 
-  // Drawing state management
-  List<List<Offset?>> _undoStack = [];
-  List<List<Offset?>> _redoStack = [];
+  final List<DrawingAction> _undoStack = [];
+  final List<DrawingAction> _redoStack = [];
   List<Offset?> _currentLine = [];
   bool _isErasing = false;
-  double _strokeWidth = 2.0;
-  Color _drawingColor = Colors.black;
+  final double _strokeWidth = 2.0;
+  final double _eraserSize = 20.0;
+  Offset? _currentEraserPosition;
+  List<List<Offset?>> _activePoints = [];
 
   @override
   void initState() {
@@ -74,8 +86,25 @@ class _DrawingPageState extends State<DrawingPage> {
   void _addLine() {
     if (_currentLine.isNotEmpty) {
       setState(() {
-        _undoStack.add(List.from(_currentLine));
+        _undoStack.add(DrawingAction(
+          isErase: false,
+          points: List.from(_currentLine),
+        ));
+        _activePoints.add(List.from(_currentLine));
         _currentLine = [];
+        _redoStack.clear();
+      });
+    }
+  }
+
+  void _addEraseAction(List<List<Offset?>> erasedPoints) {
+    if (erasedPoints.isNotEmpty) {
+      setState(() {
+        _undoStack.add(DrawingAction(
+          isErase: true,
+          points: [],
+          erasedPoints: erasedPoints,
+        ));
         _redoStack.clear();
       });
     }
@@ -84,7 +113,14 @@ class _DrawingPageState extends State<DrawingPage> {
   void _undo() {
     setState(() {
       if (_undoStack.isNotEmpty) {
-        _redoStack.add(_undoStack.removeLast());
+        final action = _undoStack.removeLast();
+        _redoStack.add(action);
+
+        if (action.isErase) {
+          _activePoints.addAll(action.erasedPoints);
+        } else {
+          _activePoints.removeLast();
+        }
       }
     });
   }
@@ -92,24 +128,28 @@ class _DrawingPageState extends State<DrawingPage> {
   void _redo() {
     setState(() {
       if (_redoStack.isNotEmpty) {
-        _undoStack.add(_redoStack.removeLast());
+        final action = _redoStack.removeLast();
+        _undoStack.add(action);
+
+        if (action.isErase) {
+          for (var points in action.erasedPoints) {
+            _activePoints.remove(points);
+          }
+        } else {
+          _activePoints.add(action.points);
+        }
       }
     });
   }
 
   void _toggleEraser() {
     setState(() {
-      if (_currentLine.isNotEmpty) {
-        _addLine();
-      }
       _isErasing = !_isErasing;
-      _drawingColor = _isErasing ? Colors.white : Colors.black;
-      _strokeWidth = _isErasing ? 20.0 : 2.0;
+      _currentEraserPosition = null;
     });
   }
 
   Future<void> _clearTemporaryDirectory() async {
-    print("Clearing...");
     final tempDir = await getTemporaryDirectory();
     final directory = Directory(tempDir.path);
 
@@ -135,11 +175,9 @@ class _DrawingPageState extends State<DrawingPage> {
         _outputImagePath = null;
       });
 
-      final RenderRepaintBoundary boundary = _drawingKey.currentContext!
-          .findRenderObject() as RenderRepaintBoundary;
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+      final boundary = _drawingKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/drawing.png');
@@ -148,8 +186,7 @@ class _DrawingPageState extends State<DrawingPage> {
       final response = await Dio().post(
         '$_apiUrl/process-image',
         data: FormData.fromMap({
-          'image': await MultipartFile.fromFile(tempFile.path,
-              filename: 'drawing.png'),
+          'image': await MultipartFile.fromFile(tempFile.path, filename: 'drawing.png'),
         }),
         options: Options(responseType: ResponseType.bytes),
       );
@@ -161,8 +198,7 @@ class _DrawingPageState extends State<DrawingPage> {
         _outputImagePath = outputFile.path;
       });
     } catch (e) {
-      _showErrorPopup(
-          context, 'Failed to connect to the API. Please try again.');
+      _showErrorPopup(context, 'Failed to connect to the API. Please try again.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -179,9 +215,7 @@ class _DrawingPageState extends State<DrawingPage> {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancel'),
             ),
             TextButton(
@@ -203,13 +237,14 @@ class _DrawingPageState extends State<DrawingPage> {
       _undoStack.clear();
       _redoStack.clear();
       _currentLine.clear();
+      _activePoints.clear();
       _outputImagePath = null;
+      _currentEraserPosition = null;
     });
   }
 
   void _changeApiUrl() {
-    final TextEditingController apiController =
-        TextEditingController(text: _apiUrl);
+    final apiController = TextEditingController(text: _apiUrl);
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -221,9 +256,7 @@ class _DrawingPageState extends State<DrawingPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancel'),
             ),
             TextButton(
@@ -291,15 +324,13 @@ class _DrawingPageState extends State<DrawingPage> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.undo,
-                          color:
-                              _undoStack.isEmpty ? Colors.grey : Colors.white),
+                          color: _undoStack.isEmpty ? Colors.grey : Colors.white),
                       onPressed: _undoStack.isEmpty ? null : _undo,
                       tooltip: 'Undo',
                     ),
                     IconButton(
                       icon: Icon(Icons.redo,
-                          color:
-                              _redoStack.isEmpty ? Colors.grey : Colors.white),
+                          color: _redoStack.isEmpty ? Colors.grey : Colors.white),
                       onPressed: _redoStack.isEmpty ? null : _redo,
                       tooltip: 'Redo',
                     ),
@@ -321,27 +352,54 @@ class _DrawingPageState extends State<DrawingPage> {
                     child: GestureDetector(
                       onPanStart: (details) {
                         _currentLine = [];
+                        if (_isErasing) {
+                          final RenderBox renderBox =
+                              _drawingKey.currentContext!.findRenderObject() as RenderBox;
+                          _currentEraserPosition = renderBox.globalToLocal(details.globalPosition);
+                        }
                       },
                       onPanUpdate: (details) {
                         setState(() {
                           final RenderBox renderBox =
-                              _drawingKey.currentContext!.findRenderObject()
-                                  as RenderBox;
-                          final offset =
-                              renderBox.globalToLocal(details.globalPosition);
+                              _drawingKey.currentContext!.findRenderObject() as RenderBox;
+                          final offset = renderBox.globalToLocal(details.globalPosition);
+                          
                           if (offset.dy >= renderBox.size.height / 16) {
-                            _currentLine.add(offset);
+                            if (_isErasing) {
+                              _currentEraserPosition = offset;
+                              List<List<Offset?>> erasedPoints = [];
+                              _activePoints = _activePoints.map((points) {
+                                var originalPoints = List<Offset?>.from(points);
+                                points.removeWhere((point) => point != null &&
+                                    (point - offset).distance <= _eraserSize / 2);
+                                if (points.length != originalPoints.length) {
+                                  erasedPoints.add(originalPoints);
+                                }
+                                return points;
+                              }).toList();
+                              if (erasedPoints.isNotEmpty) {
+                                _addEraseAction(erasedPoints);
+                              }
+                            } else {
+                              _currentLine.add(offset);
+                            }
                           }
                         });
                       },
                       onPanEnd: (details) {
-                        _addLine();
+                        if (!_isErasing) {
+                          _addLine();
+                        }
+                        _currentEraserPosition = null;
                       },
                       child: CustomPaint(
                         painter: _FacePainter(
-                          points: [..._undoStack, _currentLine],
+                          points: [..._activePoints, if (!_isErasing) _currentLine],
                           strokeWidth: _strokeWidth,
-                          drawingColor: _drawingColor,
+                          drawingColor: Colors.black,
+                          isErasing: _isErasing,
+                          eraserPosition: _currentEraserPosition,
+                          eraserSize: _eraserSize,
                         ),
                         child: Container(),
                       ),
@@ -352,15 +410,11 @@ class _DrawingPageState extends State<DrawingPage> {
             ],
           ),
           if (_isLoading)
-            Stack(
-              children: [
-                Container(
-                  color: const Color(0xFFbfd7ed).withOpacity(0.7),
-                ),
-                const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ],
+            Container(
+              color: const Color(0xFFbfd7ed).withOpacity(0.7),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
             ),
           Positioned(
             bottom: 20,
@@ -377,7 +431,7 @@ class _DrawingPageState extends State<DrawingPage> {
             child: FloatingActionButton(
               onPressed: _resetDrawing,
               backgroundColor: const Color(0xFFbfd7ed),
-              child: const Icon(Icons.refresh, size: 30),
+              child: const Icon(Icons.delete, size: 30),
             ),
           ),
         ],
@@ -390,31 +444,48 @@ class _FacePainter extends CustomPainter {
   final List<List<Offset?>> points;
   final double strokeWidth;
   final Color drawingColor;
+  final bool isErasing;
+  final Offset? eraserPosition;
+  final double eraserSize;
 
   _FacePainter({
     required this.points,
-    this.strokeWidth = 2.0,
-    this.drawingColor = Colors.black,
+    required this.strokeWidth,
+    required this.drawingColor,
+    this.isErasing = false,
+    this.eraserPosition,
+    this.eraserSize = 20.0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = drawingColor
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = strokeWidth;
 
-    for (final line in points) {
-      for (int i = 0; i < line.length - 1; i++) {
-        if (line[i] != null && line[i + 1] != null) {
-          canvas.drawLine(line[i]!, line[i + 1]!, paint);
+    for (var line in points) {
+      if (line.isNotEmpty) {
+        for (var i = 0; i < line.length - 1; i++) {
+          if (line[i] != null && line[i + 1] != null) {
+            canvas.drawLine(line[i]!, line[i + 1]!, paint);
+          }
         }
       }
+    }
+
+    if (isErasing && eraserPosition != null) {
+      final eraserPaint = Paint()
+        ..color = Colors.grey.withOpacity(0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+
+      canvas.drawCircle(eraserPosition!, eraserSize / 2, eraserPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(CustomPainter oldDelegate) => true;
 }
 
 class AboutPage extends StatelessWidget {
@@ -423,38 +494,22 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('About'),
-      ),
+      appBar: AppBar(title: const Text('About')),
       body: const Padding(
         padding: EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('Sketchify AI',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                )),
+            SizedBox(height: 16),
+            Text('Version 1.0'),
+            SizedBox(height: 16),
             Text(
-              'About Sketchify AI',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 10),
-            Text(
-              'This app allows users to draw sketches and process them using AI to generate an image.',
-            ),
-            SizedBox(height: 10),
-            Text(
-              'Features:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 5),
-            Text('• Draw sketches directly on the screen'),
-            Text('• Generate images based on your drawing'),
-            Text('• Customize the API URL for image processing'),
-            SizedBox(height: 10),
-            Text(
-              'Developed by Dotware@117.',
-            ),
+                'Sketchify AI is an app that turns sketches into beautiful images with the help of AI.'),
           ],
         ),
       ),
