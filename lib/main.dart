@@ -1,44 +1,42 @@
-import 'dart:io'; // Provides file manipulation capabilities
-import 'dart:typed_data'; // Supports working with byte data
-import 'dart:ui' as ui; // Used for custom rendering and image manipulation
-import 'package:flutter/material.dart'; // Core Flutter package for UI development
-import 'package:flutter/rendering.dart'; // Provides rendering objects
-import 'package:path_provider/path_provider.dart'; // Locates common storage directories
-import 'package:dio/dio.dart'; // Handles HTTP requests and responses
-import 'package:shared_preferences/shared_preferences.dart'; // Stores key-value pairs locally
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(const FaceDrawingApp()); // Entry point for the app
+  runApp(const FaceDrawingApp());
 }
 
-// Main application widget
 class FaceDrawingApp extends StatelessWidget {
   const FaceDrawingApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // Hides the debug banner
-      title: 'Sketchify AI', // App title
+      debugShowCheckedModeBanner: false,
+      title: 'Sketchify AI',
       theme: ThemeData(
-        primaryColor: const Color(0xFFbfd7ed), // Primary theme color
-        scaffoldBackgroundColor: Colors.white, // Background color for Scaffold
+        primaryColor: const Color(0xFFbfd7ed),
+        scaffoldBackgroundColor: Colors.white,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFbfd7ed), // AppBar background color
+          backgroundColor: Color(0xFFbfd7ed),
         ),
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Color(0xFFbfd7ed), // FAB background color
+          backgroundColor: Color(0xFFbfd7ed),
         ),
         iconTheme: const IconThemeData(
-          color: Colors.white, // Default icon color
+          color: Colors.white,
         ),
       ),
-      home: const DrawingPage(), // Sets the initial page
+      home: const DrawingPage(),
     );
   }
 }
 
-// Stateful widget for the drawing page
 class DrawingPage extends StatefulWidget {
   const DrawingPage({super.key});
 
@@ -47,30 +45,69 @@ class DrawingPage extends StatefulWidget {
 }
 
 class _DrawingPageState extends State<DrawingPage> {
-  final GlobalKey _drawingKey =
-      GlobalKey(); // Key for capturing the drawing area
-  bool _isLoading = false; // Tracks loading state
-  String? _outputImagePath; // Path for the generated image
-  String _apiUrl =
-      'https://d30c-34-142-175-1.ngrok-free.app'; // Default API URL
-  final List<Offset?> _points = []; // List of points for drawing
+  final GlobalKey _drawingKey = GlobalKey();
+  bool _isLoading = false;
+  String? _outputImagePath;
+  String _apiUrl = 'https://d30c-34-142-175-1.ngrok-free.app';
+
+  // Drawing state management
+  List<List<Offset?>> _undoStack = [];
+  List<List<Offset?>> _redoStack = [];
+  List<Offset?> _currentLine = [];
+  bool _isErasing = false;
+  double _strokeWidth = 2.0;
+  Color _drawingColor = Colors.black;
 
   @override
   void initState() {
     super.initState();
-    _loadApiUrl(); // Load the saved API URL
+    _loadApiUrl();
   }
 
-  // Loads the API URL from SharedPreferences
   Future<void> _loadApiUrl() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _apiUrl =
-          prefs.getString('api_url') ?? _apiUrl; // Use saved or default URL
+      _apiUrl = prefs.getString('api_url') ?? _apiUrl;
     });
   }
 
-  // Helper function to clear the temporary directory
+  void _addLine() {
+    if (_currentLine.isNotEmpty) {
+      setState(() {
+        _undoStack.add(List.from(_currentLine));
+        _currentLine = [];
+        _redoStack.clear();
+      });
+    }
+  }
+
+  void _undo() {
+    setState(() {
+      if (_undoStack.isNotEmpty) {
+        _redoStack.add(_undoStack.removeLast());
+      }
+    });
+  }
+
+  void _redo() {
+    setState(() {
+      if (_redoStack.isNotEmpty) {
+        _undoStack.add(_redoStack.removeLast());
+      }
+    });
+  }
+
+  void _toggleEraser() {
+    setState(() {
+      if (_currentLine.isNotEmpty) {
+        _addLine();
+      }
+      _isErasing = !_isErasing;
+      _drawingColor = _isErasing ? Colors.white : Colors.black;
+      _strokeWidth = _isErasing ? 20.0 : 2.0;
+    });
+  }
+
   Future<void> _clearTemporaryDirectory() async {
     print("Clearing...");
     final tempDir = await getTemporaryDirectory();
@@ -81,7 +118,7 @@ class _DrawingPageState extends State<DrawingPage> {
       for (var file in files) {
         try {
           if (file is File) {
-            file.deleteSync(); // Delete each file
+            file.deleteSync();
           }
         } catch (e) {
           debugPrint('Error deleting file: $e');
@@ -90,28 +127,24 @@ class _DrawingPageState extends State<DrawingPage> {
     }
   }
 
-  // Generates an image based on the user's drawing
   Future<void> _generateImage() async {
     try {
-      await _clearTemporaryDirectory(); // Clear temp directory first
+      await _clearTemporaryDirectory();
       setState(() {
-        _isLoading = true; // Show loading indicator
-        _outputImagePath = null; // Reset output image path
+        _isLoading = true;
+        _outputImagePath = null;
       });
 
-      // Capture the drawn content as an image
       final RenderRepaintBoundary boundary = _drawingKey.currentContext!
           .findRenderObject() as RenderRepaintBoundary;
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final ByteData? byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
 
-      // Save the image to a temporary file
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/drawing.png');
       await tempFile.writeAsBytes(byteData!.buffer.asUint8List());
 
-      // Send the image to the API
       final response = await Dio().post(
         '$_apiUrl/process-image',
         data: FormData.fromMap({
@@ -121,42 +154,40 @@ class _DrawingPageState extends State<DrawingPage> {
         options: Options(responseType: ResponseType.bytes),
       );
 
-      // Save the response image
       final outputFile = File('${tempDir.path}/output.jpg');
       await outputFile.writeAsBytes(response.data);
 
       setState(() {
-        _outputImagePath = outputFile.path; // Display the processed image
+        _outputImagePath = outputFile.path;
       });
     } catch (e) {
       _showErrorPopup(
           context, 'Failed to connect to the API. Please try again.');
     } finally {
       setState(() {
-        _isLoading = false; // Hide loading indicator
+        _isLoading = false;
       });
     }
   }
 
-  // Displays an error popup with retry and cancel options
   void _showErrorPopup(BuildContext context, String message) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Error'), // Popup title
-          content: Text(message), // Error message
+          title: const Text('Error'),
+          content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('Cancel'), // Close the popup
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _generateImage(); // Retry generating the image
+                _generateImage();
               },
               child: const Text('Retry'),
             ),
@@ -166,16 +197,16 @@ class _DrawingPageState extends State<DrawingPage> {
     );
   }
 
-  // Clears the drawing and resets the UI
-  void _resetDrawing() async{
-    await _clearTemporaryDirectory(); // Clear temp directory first
+  void _resetDrawing() async {
+    await _clearTemporaryDirectory();
     setState(() {
-      _points.clear(); // Clear drawn points
-      _outputImagePath = null; // Reset output image
+      _undoStack.clear();
+      _redoStack.clear();
+      _currentLine.clear();
+      _outputImagePath = null;
     });
   }
 
-  // Changes the API URL
   void _changeApiUrl() {
     final TextEditingController apiController =
         TextEditingController(text: _apiUrl);
@@ -183,7 +214,7 @@ class _DrawingPageState extends State<DrawingPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Change API URL'), // Popup title
+          title: const Text('Change API URL'),
           content: TextField(
             controller: apiController,
             decoration: const InputDecoration(labelText: 'API URL'),
@@ -198,10 +229,10 @@ class _DrawingPageState extends State<DrawingPage> {
             TextButton(
               onPressed: () async {
                 setState(() {
-                  _apiUrl = apiController.text.trim(); // Save new URL
+                  _apiUrl = apiController.text.trim();
                 });
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('api_url', _apiUrl); // Persist new URL
+                await prefs.setString('api_url', _apiUrl);
                 Navigator.of(context).pop();
               },
               child: const Text('Save'),
@@ -216,13 +247,12 @@ class _DrawingPageState extends State<DrawingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sketchify AI'), // AppBar title
+        title: const Text('Sketchify AI'),
         actions: [
           IconButton(
             icon: const Icon(Icons.info),
             tooltip: 'About',
             onPressed: () {
-              // Navigate to the About page
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const AboutPage()),
@@ -232,7 +262,7 @@ class _DrawingPageState extends State<DrawingPage> {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Change API URL',
-            onPressed: _changeApiUrl, // Open API URL settings
+            onPressed: _changeApiUrl,
           ),
         ],
       ),
@@ -244,7 +274,7 @@ class _DrawingPageState extends State<DrawingPage> {
                 flex: 1,
                 child: _outputImagePath != null
                     ? Image.file(
-                        File(_outputImagePath!), // Display generated image
+                        File(_outputImagePath!),
                         height: double.infinity,
                         width: double.infinity,
                         fit: BoxFit.cover,
@@ -253,13 +283,45 @@ class _DrawingPageState extends State<DrawingPage> {
                         child: Text('Generated image will appear here'),
                       ),
               ),
+              Container(
+                color: const Color(0xFFbfd7ed),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.undo,
+                          color:
+                              _undoStack.isEmpty ? Colors.grey : Colors.white),
+                      onPressed: _undoStack.isEmpty ? null : _undo,
+                      tooltip: 'Undo',
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.redo,
+                          color:
+                              _redoStack.isEmpty ? Colors.grey : Colors.white),
+                      onPressed: _redoStack.isEmpty ? null : _redo,
+                      tooltip: 'Redo',
+                    ),
+                    IconButton(
+                      icon: Icon(_isErasing ? Icons.edit : Icons.emergency,
+                          color: Colors.white),
+                      onPressed: _toggleEraser,
+                      tooltip: _isErasing ? 'Draw' : 'Erase',
+                    ),
+                  ],
+                ),
+              ),
               Expanded(
                 flex: 1,
                 child: RepaintBoundary(
-                  key: _drawingKey, // Marks the drawing area for rendering
+                  key: _drawingKey,
                   child: Container(
                     color: Colors.white,
                     child: GestureDetector(
+                      onPanStart: (details) {
+                        _currentLine = [];
+                      },
                       onPanUpdate: (details) {
                         setState(() {
                           final RenderBox renderBox =
@@ -268,15 +330,19 @@ class _DrawingPageState extends State<DrawingPage> {
                           final offset =
                               renderBox.globalToLocal(details.globalPosition);
                           if (offset.dy >= renderBox.size.height / 16) {
-                            _points.add(offset); // Add new point to the drawing
+                            _currentLine.add(offset);
                           }
                         });
                       },
-                      onPanEnd: (details) =>
-                          _points.add(null), // Mark end of line
+                      onPanEnd: (details) {
+                        _addLine();
+                      },
                       child: CustomPaint(
                         painter: _FacePainter(
-                            points: _points), // Custom drawing logic
+                          points: [..._undoStack, _currentLine],
+                          strokeWidth: _strokeWidth,
+                          drawingColor: _drawingColor,
+                        ),
                         child: Container(),
                       ),
                     ),
@@ -289,11 +355,10 @@ class _DrawingPageState extends State<DrawingPage> {
             Stack(
               children: [
                 Container(
-                  color: const Color(0xFFbfd7ed)
-                      .withOpacity(0.7), // Loading overlay
+                  color: const Color(0xFFbfd7ed).withOpacity(0.7),
                 ),
                 const Center(
-                  child: CircularProgressIndicator(), // Loading indicator
+                  child: CircularProgressIndicator(),
                 ),
               ],
             ),
@@ -301,7 +366,7 @@ class _DrawingPageState extends State<DrawingPage> {
             bottom: 20,
             right: 20,
             child: FloatingActionButton(
-              onPressed: _isLoading ? null : _generateImage, // Generate image
+              onPressed: _isLoading ? null : _generateImage,
               backgroundColor: const Color(0xFFbfd7ed),
               child: const Icon(Icons.star, size: 30),
             ),
@@ -310,7 +375,7 @@ class _DrawingPageState extends State<DrawingPage> {
             bottom: 20,
             left: 20,
             child: FloatingActionButton(
-              onPressed: _resetDrawing, // Clear the drawing
+              onPressed: _resetDrawing,
               backgroundColor: const Color(0xFFbfd7ed),
               child: const Icon(Icons.refresh, size: 30),
             ),
@@ -321,30 +386,35 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 }
 
-// Custom painter for rendering the drawing
 class _FacePainter extends CustomPainter {
-  final List<Offset?> points; // List of points to draw
+  final List<List<Offset?>> points;
+  final double strokeWidth;
+  final Color drawingColor;
 
-  _FacePainter({required this.points});
+  _FacePainter({
+    required this.points,
+    this.strokeWidth = 2.0,
+    this.drawingColor = Colors.black,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black // Drawing color
-      ..strokeWidth = 2.0 // Line thickness
-      ..strokeCap = StrokeCap.round; // Round line edges
+      ..color = drawingColor
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
 
-    for (int i = 0; i < points.length - 1; i++) {
-      if (points[i] != null && points[i + 1] != null) {
-        canvas.drawLine(
-            points[i]!, points[i + 1]!, paint); // Draw line between points
+    for (final line in points) {
+      for (int i = 0; i < line.length - 1; i++) {
+        if (line[i] != null && line[i + 1] != null) {
+          canvas.drawLine(line[i]!, line[i + 1]!, paint);
+        }
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) =>
-      true; // Always repaint
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class AboutPage extends StatelessWidget {
