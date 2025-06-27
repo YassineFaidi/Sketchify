@@ -1,12 +1,12 @@
-# Face Drawing App
+# Sketchify
 
-*Create and transform your drawings into unique artworks with the Face Drawing App!*
+*Create and transform your drawings into unique artworks with Sketchify!*
 
 ---
 
 ## Overview
 
-The **Face Drawing App** allows users to draw freehand on a canvas and send their drawings to a custom API for processing. The generated image is returned and displayed, offering a seamless and interactive experience. This app is built with **Flutter** and integrates with an API to process images and generate a new version of the drawing.
+**Sketchify** allows users to draw freehand on a canvas and send their drawings to a custom API for processing. The generated image is returned and displayed, offering a seamless and interactive experience. This app is built with **Flutter** and integrates with an API to process images and generate a new version of the drawing.
 
 ---
 
@@ -35,7 +35,7 @@ The **Face Drawing App** allows users to draw freehand on a canvas and send thei
 
 ### Prerequisites
 
-To run the Face Drawing App locally, you'll need the following:
+To run Sketchify locally, you'll need the following:
 
 - [Flutter SDK](https://flutter.dev/docs/get-started/install)
 - [Dart SDK](https://dart.dev/get-dart)
@@ -46,8 +46,8 @@ To run the Face Drawing App locally, you'll need the following:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/FaceDrawingApp.git
-   cd FaceDrawingApp
+   git clone https://github.com/YassineFaidi/Sketchify.git
+   cd Sketchify
    ```
 
 2. Install the dependencies:
@@ -107,13 +107,14 @@ We welcome contributions! If you'd like to improve this app, please fork the rep
 
 ## License
 
-This project is open-source and available under the MIT License.
+This project is open-source and available under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## Contact
 
-Created by **Faidi Yassine** - [@yourusername](https://twitter.com/yourusername)  
+Created by **Faidi Yassine** - yassine.faidi.117@gmail.com
+
 Feel free to reach out for suggestions, issues, or collaboration!
 
 ---
