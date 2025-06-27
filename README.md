@@ -1,20 +1,20 @@
 # Sketchify
 
-*Create and transform your drawings into unique artworks with Sketchify!*
+*Transform your face sketches into realistic portraits with Sketchify!*
 
 ---
 
 ## Overview
 
-**Sketchify** allows users to draw freehand on a canvas and send their drawings to a custom API for processing. The generated image is returned and displayed, offering a seamless and interactive experience. This app is built with **Flutter** and integrates with an API to process images and generate a new version of the drawing.
+**Sketchify** is a specialized face drawing application that allows users to draw freehand face sketches on a canvas and send them to a custom API powered by the **DeepFaceDrawing-Jittor** model for processing. The model generates realistic face portraits from your sketches, offering a seamless and interactive experience. This app is built with **Flutter** and integrates with an API that uses advanced AI to process face drawings and generate photorealistic results.
 
 ---
 
 ## Features
 
-- **Interactive Drawing**: Draw freely on a blank canvas with real-time touch support.
-- **API Integration**: Send your drawing to a backend API for processing, and get a new image back.
-- **Loading State**: Display a loading state with a beautiful progress indicator while waiting for the API response.
+- **Interactive Face Drawing**: Draw freehand face sketches on a blank canvas with real-time touch support.
+- **AI-Powered Processing**: Send your face sketch to a backend API powered by the DeepFaceDrawing-Jittor model for realistic face generation.
+- **Loading State**: Display a loading state with a beautiful progress indicator while waiting for the AI model to process your sketch.
 - **Customizable API URL**: Easily change the API URL via the settings menu.
 - **Clean & Beautiful UI**: A minimalist interface with a soothing color scheme and user-friendly controls.
 
@@ -23,11 +23,9 @@
 ## Tech Stack
 
 - **Frontend**: Flutter
-- **Backend**: Custom API (set your own endpoint)
-- **Image Processing**: API handles the processing of the uploaded image and returns the result.
-
----
-
+- **Backend**: Custom API with DeepFaceDrawing-Jittor model
+- **AI Model**: DeepFaceDrawing-Jittor for face sketch-to-photo generation
+- **Image Processing**: Advanced AI processing of face sketches to generate realistic portraits.
 
 ---
 
@@ -72,23 +70,29 @@ To run Sketchify locally, you'll need the following:
 
 ## Usage
 
-1. **Draw**: Use your finger or stylus to draw on the canvas area at the bottom of the screen.
-2. **Generate**: Tap the **Generate** button (star icon) to send your drawing to the backend API for processing.
-3. **View the Result**: The processed image will appear at the top of the screen. If no image appears, try resetting your drawing or check the API connection.
-4. **Reset Drawing**: Tap the **Reset** button (refresh icon) to clear the canvas and start a new drawing.
+1. **Draw a Face**: Use your finger or stylus to draw a face sketch on the canvas area at the bottom of the screen.
+2. **Generate**: Tap the **Generate** button (star icon) to send your face sketch to the DeepFaceDrawing-Jittor model for processing.
+3. **View the Result**: The AI-generated realistic face portrait will appear at the top of the screen. If no image appears, try resetting your drawing or check the API connection.
+4. **Reset Drawing**: Tap the **Reset** button (refresh icon) to clear the canvas and start a new face sketch.
 5. **Change API URL**: Tap the **Settings** button (gear icon) in the top right corner to change the API URL if needed.
 
 ---
 
 ## API Endpoint
 
-- **POST `/process-image`**: This endpoint accepts the uploaded image file and returns the processed image.
+- **POST `/process-image`**: This endpoint accepts the uploaded face sketch and returns the AI-generated realistic face portrait.
 
   **Request**:
-  - **Body**: Multipart form-data containing an image file (PNG format recommended).
+  - **Body**: Multipart form-data containing a face sketch image file (PNG format recommended).
 
   **Response**:
-  - A processed image in **JPG** format will be returned in the response.
+  - An AI-generated realistic face portrait in **JPG** format will be returned in the response.
+
+---
+
+## AI Model
+
+Sketchify uses the **DeepFaceDrawing-Jittor** model, which is specifically designed for converting hand-drawn face sketches into realistic face portraits. The model leverages advanced deep learning techniques to understand facial features and generate high-quality, photorealistic results from simple sketches.
 
 ---
 
@@ -120,7 +124,3 @@ Feel free to reach out for suggestions, issues, or collaboration!
 ---
 
 Enjoy drawing! ✏️🎨
-
---- 
-
-**Note**: Replace the placeholder images and text with actual links or content relevant to your project.
